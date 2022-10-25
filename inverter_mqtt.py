@@ -3,6 +3,8 @@ from time import sleep
 import paho.mqtt.client as paho
 from paho import mqtt
 import threading
+import keyboard
+import sys
 
 global input_voltage
 global output_voltage
@@ -61,8 +63,9 @@ def mqtt_subscription_thread():
 
 
 def read_inverter():
-    # TODO READ SERIALLY AND RETURN THE INVERTER DATA AS PER THE inverter_data_dummy.txt FILE
     inverter_dummy_data = {}
+    # TODO READ SERIALLY AND RETURN THE INVERTER DATA AS PER THE inverter_data_dummy.txt FILE
+    # Confirm it is instantaneous, or else, introduce a delay
     with open("inverter_data_dummy.txt", "r") as file:
         for line in file.readlines():
             a, b = line.split(":")
@@ -155,7 +158,21 @@ def mqtt_publish_thread():
         sleep(2)
 
 
+def close_client():
+    while True:
+        if keyboard.is_pressed("a"):
+            print("Cancel Pressed")
+            print("Waiting for 5 secs...")
+            client.disconnect()
+        sleep(0.1)
+
+
 if __name__ == '__main__':
+    print("."*20)
+    print("\n"*2)
+    print("PRESS a TO END THE PROGRAM")
+    print("\n"*2)
+    print("."*20)
     client = paho.Client(client_id="python_user", userdata=None, protocol=paho.MQTTv5)
     client.on_connect = on_connect
     client.tls_set(tls_version=mqtt.client.ssl.PROTOCOL_TLS)
@@ -169,3 +186,4 @@ if __name__ == '__main__':
     # threading.Thread(target=inverter_read_data_thread).start()
     threading.Thread(target=mqtt_subscription_thread).start()
     threading.Thread(target=mqtt_publish_thread).start()
+    threading.Thread(target=close_client).start()
