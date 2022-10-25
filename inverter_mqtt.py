@@ -39,7 +39,38 @@ global battery_mode_power_from_battery
 global battery_mode_power_from_pv_energy
 
 
-def initialize_data():
+def on_connect(client, userdata, flags, rc, properties=None):
+    print("CONNACK received with code %s." % rc)
+
+
+def on_publish(client, userdata, mid, properties=None):
+    print("mid: " + str(mid))
+
+
+def on_subscribe(client, userdata, mid, granted_qos, properties=None):
+    print("Subscribed: " + str(mid) + " " + str(granted_qos))
+
+
+def on_message(client, userdata, msg):
+    print(msg.topic + " " + str(msg.qos) + " " + str(msg.payload))
+
+
+def mqtt_subscription_thread():
+    client.subscribe([("inverter_status", 1), ("inverter_data", 1)], qos=1)
+    client.loop_forever()
+
+
+def read_inverter():
+    # TODO READ SERIALLY AND RETURN THE INVERTER DATA AS PER THE inverter_data_dummy.txt FILE
+    inverter_dummy_data = {}
+    with open("inverter_data_dummy.txt", "r") as file:
+        for line in file.readlines():
+            a, b = line.split(":")
+            inverter_dummy_data[a.strip()] = b.strip()
+    return inverter_dummy_data
+
+
+def mqtt_publish_thread():
     input_voltage = 0
     output_voltage = 0
     input_frequency = 0
@@ -73,81 +104,54 @@ def initialize_data():
     battery_mode_pv_energy_to_loads_and_charge_battery_no_utility = "false"
     battery_mode_power_from_battery = "false"
     battery_mode_power_from_pv_energy = "false"
-
-
-def on_connect(client, userdata, flags, rc, properties=None):
-    print("CONNACK received with code %s." % rc)
-
-
-def on_publish(client, userdata, mid, properties=None):
-    print("mid: " + str(mid))
-
-
-def on_subscribe(client, userdata, mid, granted_qos, properties=None):
-    print("Subscribed: " + str(mid) + " " + str(granted_qos))
-
-
-def on_message(client, userdata, msg):
-    print(msg.topic + " " + str(msg.qos) + " " + str(msg.payload))
-
-
-def mqtt_subscription_thread():
-    client.subscribe("inverter_status", qos=1)
-    client.loop_forever()
-
-
-def inverter_read_data_thread():
-    # TODO FEED IN INVERTER DATA HERE TO ADJUST THE VARIABLES ACCORDINGLY
-    pass
-
-
-def mqtt_publish_thread():
     while True:
-        # client.publish("inverter_api", payload=f"{i} V", qos=1)
+        # client.publish("inverter_data", payload="dummy", qos=1)
         client.publish("inverter_data", payload=json.dumps({
             "main_data": {
-                "input_voltage": str(input_voltage) + "V",
-                "output_voltage": str(output_voltage) + "V",
-                "input_frequency": str(input_frequency) + "Hz",
-                "pv_voltage": str(pv_voltage) + "V",
-                "pv_current": str(pv_current) + "A",
-                "pv_power": str(pv_power) + "W",
-                "ac_and_pv_charging_current": str(ac_and_pv_charging_current) + "A",
-                "ac_charging_current": str(ac_charging_current) + "A",
-                "pv_charging_current": str(pv_charging_current) + "A",
+                "input_voltage": read_inverter()["input_voltage"] + "V",
+                "output_voltage": read_inverter()["output_voltage"] + "V",
+                "input_frequency": read_inverter()["input_frequency"] + "Hz",
+                "pv_voltage": read_inverter()["pv_voltage"] + "V",
+                "pv_current": read_inverter()["pv_current"] + "A",
+                "pv_power": read_inverter()["pv_power"] + "W",
+                "ac_and_pv_charging_current": read_inverter()["ac_and_pv_charging_current"] + "A",
+                "ac_charging_current": read_inverter()["ac_charging_current"] + "A",
+                "pv_charging_current": read_inverter()["pv_charging_current"] + "A",
             },
-            "fault_reference_code": fault_reference_code,
-            "warning_indicator": warning_indicator,
+            "fault_reference_code": read_inverter()["fault_reference_code"],
+            "warning_indicator": read_inverter()["warning_indicator"],
             "operation_modes": {
                 "standby_mode": {
-                    "charging_by_utility_and_pv_energy": standby_charging_by_utility_and_pv_energy,
-                    "charging_by_utility": standby_charging_by_utility,
-                    "charging_by_pv_energy": standby_charging_by_pv_energy,
-                    "no_charging": standby_no_charging,
+                    "charging_by_utility_and_pv_energy": read_inverter()["standby_charging_by_utility_and_pv_energy"],
+                    "charging_by_utility": read_inverter()["standby_charging_by_utility"],
+                    "charging_by_pv_energy": read_inverter()["standby_charging_by_pv_energy"],
+                    "no_charging": read_inverter()["standby_no_charging"],
                 },
                 "fault_mode": {
-                    "charging_by_utility_and_pv_energy": fault_mode_charging_by_utility_and_pv_energy,
-                    "charging_by_utility": fault_mode_charging_by_utility,
-                    "charging_by_pv_energy": fault_mode_charging_by_pv_energy,
-                    "no_charging": fault_mode_no_charging,
+                    "charging_by_utility_and_pv_energy": read_inverter()[
+                        "fault_mode_charging_by_utility_and_pv_energy"],
+                    "charging_by_utility": read_inverter()["fault_mode_charging_by_utility"],
+                    "charging_by_pv_energy": read_inverter()["fault_mode_charging_by_pv_energy"],
+                    "no_charging": read_inverter()["fault_mode_no_charging"],
                 },
                 "line_mode": {
-                    "charging_by_utility_and_pv_energy": line_mode_charging_by_utility_and_pv_energy,
-                    "charging_by_utility": line_mode_charging_by_utility,
-                    "solar_energy_not_sufficient": line_mode_solar_energy_not_sufficient,
-                    "battery_not_connected": line_mode_battery_not_connected,
-                    "power_from_utility": line_mode_power_from_utility,
+                    "charging_by_utility_and_pv_energy": read_inverter()["line_mode_charging_by_utility_and_pv_energy"],
+                    "charging_by_utility": read_inverter()["line_mode_charging_by_utility"],
+                    "solar_energy_not_sufficient": read_inverter()["line_mode_solar_energy_not_sufficient"],
+                    "battery_not_connected": read_inverter()["line_mode_battery_not_connected"],
+                    "power_from_utility": read_inverter()["line_mode_power_from_utility"]
                 },
 
                 "battery_mode": {
-                    "power_from_battery_and_pv_energy": battery_mode_power_from_battery_and_pv_energy,
-                    "pv_energy_to_loads_and_charge_battery_no_utility": battery_mode_pv_energy_to_loads_and_charge_battery_no_utility,
-                    "power_from_battery": battery_mode_power_from_battery,
-                    "power_from_pv_energy": battery_mode_power_from_pv_energy,
+                    "power_from_battery_and_pv_energy": read_inverter()[
+                        "battery_mode_power_from_battery_and_pv_energy"],
+                    "pv_energy_to_loads_and_charge_battery_no_utility": read_inverter()[
+                        "battery_mode_pv_energy_to_loads_and_charge_battery_no_utility"],
+                    "power_from_battery": read_inverter()["battery_mode_power_from_battery"],
+                    "power_from_pv_energy": read_inverter()["battery_mode_power_from_pv_energy"],
                 },
             }
         }), qos=1)
-        i += 1
         sleep(2)
 
 
@@ -162,6 +166,6 @@ if __name__ == '__main__':
     client.on_message = on_message
     client.on_publish = on_publish
 
-    threading.Thread(target=inverter_read_data_thread).start()
+    # threading.Thread(target=inverter_read_data_thread).start()
     threading.Thread(target=mqtt_subscription_thread).start()
     threading.Thread(target=mqtt_publish_thread).start()
