@@ -162,7 +162,6 @@ def close_client():
     while True:
         if keyboard.is_pressed("a"):
             print("Cancel Pressed")
-            print("Waiting for 5 secs...")
             client.disconnect()
         sleep(0.1)
 
