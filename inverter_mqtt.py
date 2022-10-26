@@ -5,40 +5,43 @@ from paho import mqtt
 import threading
 import keyboard
 import sys
+from private_data import *
 
-global input_voltage
-global output_voltage
-global input_frequency
-global pv_voltage
-global pv_current
-global pv_power
-global ac_and_pv_charging_current
-global ac_charging_current
-global pv_charging_current
+# global input_voltage
+# global output_voltage
+# global input_frequency
+# global pv_voltage
+# global pv_current
+# global pv_power
+# global ac_and_pv_charging_current
+# global ac_charging_current
+# global pv_charging_current
+#
+# global fault_reference_code
+# global warning_indicator
+#
+# global standby_charging_by_utility_and_pv_energy
+# global standby_charging_by_utility
+# global standby_charging_by_pv_energy
+# global standby_no_charging
+#
+# global fault_mode_charging_by_utility_and_pv_energy
+# global fault_mode_charging_by_utility
+# global fault_mode_charging_by_pv_energy
+# global fault_mode_no_charging
+#
+# global line_mode_charging_by_utility_and_pv_energy
+# global line_mode_charging_by_utility
+# global line_mode_solar_energy_not_sufficient
+# global line_mode_battery_not_connected
+# global line_mode_power_from_utility
+#
+# global battery_mode_power_from_battery_and_pv_energy
+# global battery_mode_pv_energy_to_loads_and_charge_battery_no_utility
+# global battery_mode_power_from_battery
+# global battery_mode_power_from_pv_energy
 
-global fault_reference_code
-global warning_indicator
-
-global standby_charging_by_utility_and_pv_energy
-global standby_charging_by_utility
-global standby_charging_by_pv_energy
-global standby_no_charging
-
-global fault_mode_charging_by_utility_and_pv_energy
-global fault_mode_charging_by_utility
-global fault_mode_charging_by_pv_energy
-global fault_mode_no_charging
-
-global line_mode_charging_by_utility_and_pv_energy
-global line_mode_charging_by_utility
-global line_mode_solar_energy_not_sufficient
-global line_mode_battery_not_connected
-global line_mode_power_from_utility
-
-global battery_mode_power_from_battery_and_pv_energy
-global battery_mode_pv_energy_to_loads_and_charge_battery_no_utility
-global battery_mode_power_from_battery
-global battery_mode_power_from_pv_energy
+initialization = False
 
 
 def on_connect(client, userdata, flags, rc, properties=None):
@@ -54,11 +57,15 @@ def on_subscribe(client, userdata, mid, granted_qos, properties=None):
 
 
 def on_message(client, userdata, msg):
+    global initialization
     print(msg.topic + " " + str(msg.qos) + " " + str(msg.payload))
+    if msg.topic == "flutter_request_data":
+        print("allowed initialization")
+        initialization = True
 
 
 def mqtt_subscription_thread():
-    client.subscribe([("inverter_status", 1), ("inverter_data", 1)], qos=1)
+    client.subscribe([("inverter_status", 1), ("inverter_data", 1), ("flutter_request_data", 1)], qos=1)
     client.loop_forever()
 
 
@@ -107,9 +114,10 @@ def mqtt_publish_thread():
     battery_mode_pv_energy_to_loads_and_charge_battery_no_utility = "false"
     battery_mode_power_from_battery = "false"
     battery_mode_power_from_pv_energy = "false"
+    old_data = ""
+    global initialization
     while True:
-        # client.publish("inverter_data", payload="dummy", qos=1)
-        client.publish("inverter_data", payload=json.dumps({
+        new_data = {
             "main_data": {
                 "input_voltage": read_inverter()["input_voltage"] + "V",
                 "output_voltage": read_inverter()["output_voltage"] + "V",
@@ -154,29 +162,36 @@ def mqtt_publish_thread():
                     "power_from_pv_energy": read_inverter()["battery_mode_power_from_pv_energy"],
                 },
             }
-        }), qos=1)
-        sleep(2)
+        }
+        print(initialization)
+        if old_data != new_data or initialization:
+            client.publish("inverter_data", payload=json.dumps(new_data), qos=1)
+            old_data = new_data
+            initialization = False
+        sleep(.5)
 
 
 def close_client():
-    while True:
-        if keyboard.is_pressed("a"):
-            print("Cancel Pressed")
-            client.disconnect()
-        sleep(0.1)
+    pass
+    # while True:
+    #     if keyboard.is_pressed("a"):
+    #         print("Cancel Pressed")
+    #         client.disconnect()
+    #     sleep(0.1)
 
 
 if __name__ == '__main__':
-    print("."*20)
-    print("\n"*2)
+    print("." * 20)
+    print("\n" * 2)
     print("PRESS a TO END THE PROGRAM")
-    print("\n"*2)
-    print("."*20)
-    client = paho.Client(client_id="python_user", userdata=None, protocol=paho.MQTTv5)
+    print("\n" * 2)
+    print("." * 20)
+
+    client = paho.Client(client_id=my_client_id, userdata=None, protocol=paho.MQTTv5)
     client.on_connect = on_connect
     client.tls_set(tls_version=mqtt.client.ssl.PROTOCOL_TLS)
-    client.username_pw_set("Vincent", "mycluster")
-    client.connect("ceb1d69ea6904c50836dc3ce8214c321.s1.eu.hivemq.cloud", 8883)
+    client.username_pw_set(my_username, my_password)
+    client.connect(my_host, my_port)
 
     client.on_subscribe = on_subscribe
     client.on_message = on_message
